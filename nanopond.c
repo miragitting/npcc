@@ -216,30 +216,32 @@
  * info while slowing down the simulation. Higher values will give less
  * frequent updates. */
 /* This is also the frequency of screen refreshes if SDL is enabled. */
-#define REPORT_FREQUENCY 200000
+int REPORT_FREQUENCY; //200000
 
 /* Mutation rate -- range is from 0 (none) to 0xffffffff (all mutations!) */
 /* To get it from a float probability from 0.0 to 1.0, multiply it by
  * 4294967295 (0xffffffff) and round. */
-#define MUTATION_RATE 5000
-
+// #define MUTATION_RATE 5000
+int MUTATION_RATE;
 /* How frequently should random cells / energy be introduced?
  * Making this too high makes things very chaotic. Making it too low
  * might not introduce enough energy. */
-#define INFLOW_FREQUENCY 100
-
+//#define INFLOW_FREQUENCY 100
+int INFLOW_FREQUENCY;
 /* Base amount of energy to introduce per INFLOW_FREQUENCY ticks */
-#define INFLOW_RATE_BASE 600
-
+//#define INFLOW_RATE_BASE 600
+int INFLOW_RATE_BASE;
 /* A random amount of energy between 0 and this is added to
  * INFLOW_RATE_BASE when energy is introduced. Comment this out for
  * no variation in inflow rate. */
-#define INFLOW_RATE_VARIATION 1000
-
+//#define INFLOW_RATE_VARIATION 1000
+int INFLOW_RATE_VARIATION;
 /* Size of pond in X and Y dimensions. */
-#define POND_SIZE_X 800
-#define POND_SIZE_Y 600
-
+// #define POND_SIZE_X 800
+// #define POND_SIZE_Y 600
+int POND_SIZE_Y;
+int POND_SIZE_X;
+ 
 /* Depth of pond in four-bit codons -- this is the maximum
  * genome size. This *must* be a multiple of 16! */
 #define POND_DEPTH 1024
@@ -252,10 +254,10 @@
 /* Define this to use SDL. To use SDL, you must have SDL headers
  * available and you must link with the SDL library when you compile. */
 /* Comment this out to compile without SDL visualization support. */
-#define USE_SDL 1
+// #define USE_SDL 1
 
 /* Define this to use threads, and how many threads to create */
-#define USE_PTHREADS_COUNT 4
+// #define USE_PTHREADS_COUNT 4
 
 /* ----------------------------------------------------------------------- */
 
@@ -264,6 +266,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifdef USE_PTHREADS_COUNT
 #include <pthread.h>
@@ -344,8 +347,13 @@ struct Cell
 };
 
 /* The pond is a 2D array of cells */
-static struct Cell pond[POND_SIZE_X][POND_SIZE_Y];
+/*static struct Cell pond[POND_SIZE_X][POND_SIZE_Y] = 
+ * malloc((POND_SIZE_X*POND_SIZE_Y)* sizeof(struct Cell)); */
+static struct Cell** pond; /*= ((struct Cell**)calloc(POND_SIZE_X, sizeof(struct Cell*)));
 
+for(int i = 0; i < POND_SIZE_X; i++){
+    pond[i] = (struct Cell*)calloc(POND_SIZE_Y, sizeof(struct Cell));
+}*/
 /* This is used to generate unique cell IDs */
 static volatile uint64_t cellIdCounter = 0;
 
@@ -939,8 +947,67 @@ static void *run(void *targ)
  */
 int main(int argc,char **argv)
 {
-	uintptr_t i,x,y;
+    int flags, opt;
+    POND_SIZE_X = 800;
+    POND_SIZE_Y = 600;
+    MUTATION_RATE = 5000;
+    INFLOW_FREQUENCY = 100;
+    INFLOW_RATE_BASE = 600;
+    INFLOW_RATE_VARIATION = 1000;
+    REPORT_FREQUENCY = 200000;
 
+    flags = 0;
+
+    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:" /*y*/)) != -1) {
+        switch (opt) {
+            case 'x':
+                POND_SIZE_X = atoi(optarg);
+                break;
+            case 'y':
+                POND_SIZE_Y = atoi(optarg);
+                break;
+            case 'f':
+                INFLOW_FREQUENCY = atoi(optarg);
+                break;
+            case 'b':
+                INFLOW_RATE_BASE = atoi(optarg);
+                break;
+            case 'v':
+                INFLOW_RATE_VARIATION = atoi(optarg);
+                break;
+            case 'm':
+                MUTATION_RATE = atoi(optarg);
+                break;
+            case 'p':
+                if (optarg.toupper(equals("NONE"))){
+                    REPORT_FREQUENCY = 20000000000000;
+                }
+                else if (optarg.toupper(equals("LOW"))){
+                    REPORT_FREQUENCY = 20000000;
+                }
+                else if (optarg.toupper(equals("MED"))){
+                    REPORT_FREQUENCY = 2000000;
+                }
+                else if (optarg.toupper(equals("HIGH"))){
+                    REPORT_FREQUENCY = 200000;
+                }
+            default:
+                fprintf(stderr, "Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <none/low/med/high>] \n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+    // POND_SIZE_X = sizex;
+    // POND_SIZE_Y = sizey;
+
+    printf("POND_SIZE_X = %d, POND_SIZE_Y = %d\n", POND_SIZE_X, POND_SIZE_Y);
+    pond = ((struct Cell**)calloc(POND_SIZE_X, sizeof(struct Cell*)));
+ 
+    for(int i = 0; i < POND_SIZE_X; i++){
+       pond[i] = (struct Cell*)calloc(POND_SIZE_Y, sizeof(struct Cell));
+    }
+    //int POND_SIZE_X = 800;
+	uintptr_t i,x,y;
+    //const int POND_SIZE_X = 800;
 	/* Seed and init the random number generator */
 	prngState[0] = (uint64_t)time(NULL);
 	srand(time(NULL));
@@ -1023,5 +1090,9 @@ int main(int argc,char **argv)
 	SDL_DestroyWindow(window);
 #endif /* USE_SDL */
 
+    for(int i = 0; i < POND_SIZE_X; i++){
+        free(pond[i]);
+    }
+    free(pond);
 	return 0;
 }
