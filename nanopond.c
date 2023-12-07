@@ -210,7 +210,7 @@
 
 /* ----------------------------------------------------------------------- */
 /* Tunable parameters                                                      */
-/* ----------------------------------------------------------------------- */
+
 
 /* Frequency of comprehensive reports-- lower values will provide more
  * info while slowing down the simulation. Higher values will give less
@@ -966,7 +966,7 @@ int main(int argc,char **argv)
     POND_DEPTH = 1024;
     flags = 0;
 
-    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:")) != -1) {
+    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:h")) != -1) {
         switch (opt) {
             case 'x':
                 POND_SIZE_X = atoi(optarg);
@@ -1011,9 +1011,27 @@ int main(int argc,char **argv)
             case 'k':
                 FAILED_KILL_PENALTY = atoi(optarg);
                 break;
-                    
+            case 'h':
+                printf("List of acceptable flags/parameters :\n" 
+                        "-x : POND_SIZE_X -> integer value for the 'width' of the pond (default 800)\n"
+                        "-y : POND_SIZE_Y -> integer value for the 'height' of the pond (default 600)\n"
+                        "-f : INFLOW_FREQUENCY -> How frequently should random cells / energy be introduced? Too high = chaotic, "
+                        "too low = not enough energy (default = 100)\n"
+                        "-b : INFLOW_RATE_BASE -> Base amount of energy to introduce per INFLOW_FREQUENCY ticks (default = 600)\n"
+                        "-v : INFLOW_RATE_VARIATION -> (A random amount of energy between 0 and this is added to "
+                        "INFLOW_RATE_BASE when energy is introduced (default = 1000)\n"    
+                        "-m : MUTATION_RATE -> range is from 0 (none) to 0xffffffff (all mutations!) (default = 5000)\n"
+                        "-p : PRINT_FREQ LOW, MED, or HIGH -> How often information is printed to the terminal (default = HIGH)\n"
+                        "-c : MAX_CLOCK (is multiplied by 10000) -> How many clock iterations the program runs "
+                        "(default = -1 = forever) \n"
+                        "-d : POND_DEPTH (must be multiple of 16) -> Depth of the pond in four-bit codons -- acts as the maximum "
+                        "genome size (default = 1024)\n"
+                        "-k : FAILED_KILL_PENALTY -> Determines how much energy is taken from cells when they fail to kill a "
+                        "viable cell neighbor. Higher numbers mean lower penalties (default = 3)\n"
+                        "-h : help menu -> Pulls up this menu :)\n");
+                        exit(EXIT_FAILURE);
             default:
-                printf("Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <LOW/MED/HIGH>] [-c MAX_CLOCK (is multiplied by 10000)] [-d POND_DEPTH (must be multiple of 16)] [-k FAILED_KILL_PENALTY]\n", argv[0]);
+                printf("Usage: %s [-h help menu] [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <LOW/MED/HIGH>] [-c MAX_CLOCK (is multiplied by 10000)] [-d POND_DEPTH (must be multiple of 16)] [-k FAILED_KILL_PENALTY]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
