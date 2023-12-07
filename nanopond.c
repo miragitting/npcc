@@ -958,7 +958,7 @@ int main(int argc,char **argv)
 
     flags = 0;
 
-    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:" /*y*/)) != -1) {
+    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:")) != -1) {
         switch (opt) {
             case 'x':
                 POND_SIZE_X = atoi(optarg);
@@ -979,20 +979,18 @@ int main(int argc,char **argv)
                 MUTATION_RATE = atoi(optarg);
                 break;
             case 'p':
-                if (optarg.toupper(equals("NONE"))){
-                    REPORT_FREQUENCY = 20000000000000;
+                if (strcmp(optarg,"LOW") == 0){
+                    REPORT_FREQUENCY = 10000000;
                 }
-                else if (optarg.toupper(equals("LOW"))){
-                    REPORT_FREQUENCY = 20000000;
-                }
-                else if (optarg.toupper(equals("MED"))){
+                else if (strcmp(optarg,"MED") == 0){
                     REPORT_FREQUENCY = 2000000;
                 }
-                else if (optarg.toupper(equals("HIGH"))){
+                else if (strcmp(optarg,"HIGH") == 0){
                     REPORT_FREQUENCY = 200000;
                 }
+                break;
             default:
-                fprintf(stderr, "Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <none/low/med/high>] \n", argv[0]);
+                fprintf(stderr, "Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <LOW/MED/HIGH>] \n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
