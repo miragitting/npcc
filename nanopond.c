@@ -241,7 +241,7 @@ int INFLOW_RATE_VARIATION;
 // #define POND_SIZE_Y 600
 int POND_SIZE_Y;
 int POND_SIZE_X;
- 
+int MAX_CLOCK; 
 /* Depth of pond in four-bit codons -- this is the maximum
  * genome size. This *must* be a multiple of 16! */
 #define POND_DEPTH 1024
@@ -249,7 +249,7 @@ int POND_SIZE_X;
 /* This is the divisor that determines how much energy is taken
  * from cells when they try to KILL a viable cell neighbor and
  * fail. Higher numbers mean lower penalties. */
-#define FAILED_KILL_PENALTY 3
+int FAILED_KILL_PENALTY;
 
 /* Define this to use SDL. To use SDL, you must have SDL headers
  * available and you must link with the SDL library when you compile. */
@@ -298,6 +298,7 @@ static inline uintptr_t getRandom()
  * by two is due to the fact that there are two four-bit values in
  * each eight-bit byte.) */
 #define POND_DEPTH_SYSWORDS (POND_DEPTH / (sizeof(uintptr_t) * 2))
+// TODO: need to calloc memory fpr POND_DEPTH_SYSWORDS based on POND_DEPTH
 
 /* Number of bits in a machine-size word */
 #define SYSWORD_BITS (sizeof(uintptr_t) * 8)
@@ -644,6 +645,10 @@ static void *run(void *targ)
 			SDL_BlitSurface(screen, NULL, winsurf, NULL);
 			SDL_UpdateWindowSurface(window);
 #endif /* USE_SDL */
+
+            if(clock >= MAX_CLOCK) {
+                exitNow = 1;
+            }
 		}
 
 		/* Introduce a random cell somewhere with a given energy level */
@@ -955,10 +960,12 @@ int main(int argc,char **argv)
     INFLOW_RATE_BASE = 600;
     INFLOW_RATE_VARIATION = 1000;
     REPORT_FREQUENCY = 200000;
-
+    MAX_CLOCK =-1;
+    FAILED_KILL_PENALTY = 3;
+    // POND_DEPTH = 1024;
     flags = 0;
 
-    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:")) != -1) {
+    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:")) != -1) {
         switch (opt) {
             case 'x':
                 POND_SIZE_X = atoi(optarg);
@@ -989,8 +996,22 @@ int main(int argc,char **argv)
                     REPORT_FREQUENCY = 200000;
                 }
                 break;
+            case 'c':
+                MAX_CLOCK = atoi(optarg)*10000;
+                break;
+            /*    
+            case 'd':
+                if(atoi(optarg) % 16 == 0){
+                    POND_DEPTH = atoi(optarg);
+                }
+                break;
+            */
+            case 'k':
+                FAILED_KILL_PENALTY = atoi(optarg);
+                break;
+                    
             default:
-                fprintf(stderr, "Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <LOW/MED/HIGH>] \n", argv[0]);
+                fprintf(stderr, "Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <LOW/MED/HIGH>] [-c MAX_CLOCK (is multiplied by 10000)] [-d POND_DEPTH (must be multiple of 16)] [-k FAILED_KILL_PENALTY]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
@@ -998,6 +1019,7 @@ int main(int argc,char **argv)
     // POND_SIZE_Y = sizey;
 
     printf("POND_SIZE_X = %d, POND_SIZE_Y = %d\n", POND_SIZE_X, POND_SIZE_Y);
+    // POND_DEPTH_SYSWORDS = (POND_DEPTH / (sizeof(uintptr_t) * 2));
     pond = ((struct Cell**)calloc(POND_SIZE_X, sizeof(struct Cell*)));
  
     for(int i = 0; i < POND_SIZE_X; i++){
