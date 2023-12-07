@@ -244,8 +244,8 @@ int POND_SIZE_X;
 int MAX_CLOCK; 
 /* Depth of pond in four-bit codons -- this is the maximum
  * genome size. This *must* be a multiple of 16! */
-#define POND_DEPTH 1024
-
+//#define POND_DEPTH 1024
+int POND_DEPTH;
 /* This is the divisor that determines how much energy is taken
  * from cells when they try to KILL a viable cell neighbor and
  * fail. Higher numbers mean lower penalties. */
@@ -297,9 +297,9 @@ static inline uintptr_t getRandom()
  * POND_DEPTH and the size of the machine word. (The multiplication
  * by two is due to the fact that there are two four-bit values in
  * each eight-bit byte.) */
-#define POND_DEPTH_SYSWORDS (POND_DEPTH / (sizeof(uintptr_t) * 2))
+// #define POND_DEPTH_SYSWORDS (POND_DEPTH / (sizeof(uintptr_t) * 2))
 // TODO: need to calloc memory fpr POND_DEPTH_SYSWORDS based on POND_DEPTH
-
+int POND_DEPTH_SYSWORDS;
 /* Number of bits in a machine-size word */
 #define SYSWORD_BITS (sizeof(uintptr_t) * 8)
 
@@ -316,6 +316,7 @@ static inline uintptr_t getRandom()
 
 /* Number of bits set in binary numbers 0000 through 1111 */
 static const uintptr_t BITS_IN_FOURBIT_WORD[16] = { 0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4 };
+
 
 /**
  * Structure for a cell in the pond
@@ -340,7 +341,7 @@ struct Cell
 
 	/* Memory space for cell genome (genome is stored as four
 	 * bit instructions packed into machine size words) */
-	uintptr_t genome[POND_DEPTH_SYSWORDS];
+	uintptr_t* genome;
 
 #ifdef USE_PTHREADS_COUNT
 	pthread_mutex_t lock;
@@ -937,7 +938,7 @@ static void *run(void *targ)
 		} else {
 			((uint8_t *)screen->pixels)[x + ((POND_SIZE_Y-1) * sdlPitch)] = getColor(&pond[x][POND_SIZE_Y-1]);
 			((uint8_t *)screen->pixels)[x + sdlPitch] = getColor(&pond[x][1]);
-		}
+		
 #endif /* USE_SDL */
 	}
 
@@ -962,7 +963,7 @@ int main(int argc,char **argv)
     REPORT_FREQUENCY = 200000;
     MAX_CLOCK =-1;
     FAILED_KILL_PENALTY = 3;
-    // POND_DEPTH = 1024;
+    POND_DEPTH = 1024;
     flags = 0;
 
     while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:")) != -1) {
@@ -999,32 +1000,40 @@ int main(int argc,char **argv)
             case 'c':
                 MAX_CLOCK = atoi(optarg)*10000;
                 break;
-            /*    
             case 'd':
                 if(atoi(optarg) % 16 == 0){
                     POND_DEPTH = atoi(optarg);
+                } else {
+                    printf("POND_DEPTH must be a multiple of 16 (ex: 1024)\n");
+                    exit(EXIT_FAILURE);
                 }
                 break;
-            */
             case 'k':
                 FAILED_KILL_PENALTY = atoi(optarg);
                 break;
                     
             default:
-                fprintf(stderr, "Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <LOW/MED/HIGH>] [-c MAX_CLOCK (is multiplied by 10000)] [-d POND_DEPTH (must be multiple of 16)] [-k FAILED_KILL_PENALTY]\n", argv[0]);
+                printf("Usage: %s [-x POND_SIZE_X] [-y POND_SIZE_Y] [-f INFLOW_FREQUENCY] [-b INFLOW_RATE_BASE] [-v INFLOW_RATE_VARIATION] [-m MUTATION_RATE] [-p PRINT_FREQ <LOW/MED/HIGH>] [-c MAX_CLOCK (is multiplied by 10000)] [-d POND_DEPTH (must be multiple of 16)] [-k FAILED_KILL_PENALTY]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
-    // POND_SIZE_X = sizex;
-    // POND_SIZE_Y = sizey;
 
-    printf("POND_SIZE_X = %d, POND_SIZE_Y = %d\n", POND_SIZE_X, POND_SIZE_Y);
-    // POND_DEPTH_SYSWORDS = (POND_DEPTH / (sizeof(uintptr_t) * 2));
-    pond = ((struct Cell**)calloc(POND_SIZE_X, sizeof(struct Cell*)));
- 
+    POND_DEPTH_SYSWORDS = (POND_DEPTH / (sizeof(uintptr_t) * 2));
+    // genome = ((int*)calloc(POND_DEPTH_SYSWORDS, sizeof(int)));
+
+    pond = ((struct Cell**)calloc(POND_SIZE_X, sizeof(struct Cell*))); 
     for(int i = 0; i < POND_SIZE_X; i++){
-       pond[i] = (struct Cell*)calloc(POND_SIZE_Y, sizeof(struct Cell));
+       pond[i] = ((struct Cell*)calloc(POND_SIZE_Y, sizeof(struct Cell)));
     }
+
+    for(int i = 0; i < POND_SIZE_X; i++){
+        for(int j = 0; j < POND_SIZE_Y; j++){
+            //printf("%d\n", pond[i][j].ID);
+            pond[i][j].genome = (uintptr_t*)calloc(POND_DEPTH_SYSWORDS, sizeof(uintptr_t));
+        }
+    }
+
+    // POND_DEPTH_SYSWORDS = (int*)calloc(POND_DEPTH / (sizeof(uintptr_t) * 2), sizeof(int));
     //int POND_SIZE_X = 800;
 	uintptr_t i,x,y;
     //const int POND_SIZE_X = 800;
@@ -1086,8 +1095,9 @@ int main(int argc,char **argv)
 			pond[x][y].lineage = 0;
 			pond[x][y].generation = 0;
 			pond[x][y].energy = 0;
-			for(i=0;i<POND_DEPTH_SYSWORDS;++i)
+			for(i=0;i<POND_DEPTH_SYSWORDS;++i){
 				pond[x][y].genome[i] = ~((uintptr_t)0);
+            }
 #ifdef USE_PTHREADS_COUNT
 			pthread_mutex_init(&(pond[x][y].lock),0);
 #endif
@@ -1109,7 +1119,11 @@ int main(int argc,char **argv)
 	SDL_FreeSurface(screen);
 	SDL_DestroyWindow(window);
 #endif /* USE_SDL */
-
+    for(int x = 0; x < POND_SIZE_X; x ++){
+       for(int y = 0; y < POND_SIZE_Y; y++){
+           free(pond[x][y].genome);
+       }
+    }
     for(int i = 0; i < POND_SIZE_X; i++){
         free(pond[i]);
     }
