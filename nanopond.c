@@ -76,11 +76,11 @@
  * http://www.muppetlabs.com/~breadbox/bf/
  *
  * At the center of Nanopond is a core loop. Each time this loop executes,
- * a clock counter is incremented and one or more things happen:
+ * a cycle counter is incremented and one or more things happen:
  *
- * - Every REPORT_FREQUENCY clock ticks a line of comma seperated output
+ * - Every REPORT_FREQUENCY cycle ticks a line of comma seperated output
  *   is printed to STDOUT with some statistics about what's going on.
- * - Every INFLOW_FREQUENCY clock ticks a random x,y location is picked,
+ * - Every INFLOW_FREQUENCY cycle ticks a random x,y location is picked,
  *   energy is added (see INFLOW_RATE_MEAN and INFLOW_RATE_DEVIATION)
  *   and it's genome is filled with completely random bits.  Statistics
  *   are also reset to generation==0 and parentID==0 and a new cell ID
@@ -242,6 +242,7 @@ int INFLOW_RATE_VARIATION;
 int POND_SIZE_Y;
 int POND_SIZE_X;
 int MAX_CLOCK; 
+int MAX_SECONDS;
 /* Depth of pond in four-bit codons -- this is the maximum
  * genome size. This *must* be a multiple of 16! */
 //#define POND_DEPTH 1024
@@ -387,7 +388,7 @@ volatile struct {
 	uintptr_t viableCellShares;
 } statCounters;
 
-static void doReport(const uint64_t clock)
+static void doReport(const uint64_t cycle)
 {
 	static uint64_t lastTotalViableReplicators = 0;
 	
@@ -416,7 +417,7 @@ static void doReport(const uint64_t clock)
 	
 	/* The first five are here and are self-explanatory */
 	printf("%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu",
-		(uint64_t)clock,
+		(uint64_t)cycle,
 		(uint64_t)totalEnergy,
 		(uint64_t)totalActiveCells,
 		(uint64_t)totalViableReplicators,
@@ -574,8 +575,9 @@ static void *run(void *targ)
 {
 	const uintptr_t threadNo = (uintptr_t)targ;
 	uintptr_t x,y,i;
-	uintptr_t clock = 0;
-
+	uintptr_t cycle = 0;
+    clock_t start, end;
+    start=clock();
 	/* Buffer used for execution output of candidate offspring */
 	uintptr_t outputBuf[POND_DEPTH_SYSWORDS];
 
@@ -612,14 +614,15 @@ static void *run(void *targ)
 	/* If this is nonzero, cell execution stops. This allows us
 	 * to avoid the ugly use of a goto to exit the loop. :) */
 	int stop;
-
+    
 	/* Main loop */
+    
 	while (!exitNow) {
-		/* Increment clock and run reports periodically */
+		/* Increment cycle and run reports periodically */
 		/* Clock is incremented at the start, so it starts at 1 */
-		++clock;
-		if ((threadNo == 0)&&(!(clock % REPORT_FREQUENCY))) {
-			doReport(clock);
+		++cycle;
+		if ((threadNo == 0)&&(!(cycle % REPORT_FREQUENCY))) {
+			doReport(cycle);
 			/* SDL display is also refreshed every REPORT_FREQUENCY */
 #ifdef USE_SDL
 			while (SDL_PollEvent(&sdlEvent)) {
@@ -646,8 +649,9 @@ static void *run(void *targ)
 			SDL_BlitSurface(screen, NULL, winsurf, NULL);
 			SDL_UpdateWindowSurface(window);
 #endif /* USE_SDL */
-
-            if(clock >= MAX_CLOCK) {
+            end=clock();
+            if((cycle >= MAX_CLOCK)||(((end-start)/CLOCKS_PER_SEC)>=MAX_SECONDS)&&(MAX_SECONDS!=-1)) {
+                printf("%d\n",((end-start)/CLOCKS_PER_SEC));
                 exitNow = 1;
             }
 		}
@@ -655,8 +659,8 @@ static void *run(void *targ)
 		/* Introduce a random cell somewhere with a given energy level */
 		/* This is called seeding, and introduces both energy and
 		 * entropy into the substrate. This happens every INFLOW_FREQUENCY
-		 * clock ticks. */
-		if (!(clock % INFLOW_FREQUENCY)) {
+		 * cycle ticks. */
+		if (!(cycle % INFLOW_FREQUENCY)) {
 			x = getRandom() % POND_SIZE_X;
 			y = getRandom() % POND_SIZE_Y;
 			pptr = &pond[x][y];
@@ -954,6 +958,9 @@ static void *run(void *targ)
 int main(int argc,char **argv)
 {
     int flags, opt;
+    char *curTime;
+    int iterCount;
+    int totTime;
     POND_SIZE_X = 800;
     POND_SIZE_Y = 600;
     MUTATION_RATE = 5000;
@@ -962,11 +969,12 @@ int main(int argc,char **argv)
     INFLOW_RATE_VARIATION = 1000;
     REPORT_FREQUENCY = 200000;
     MAX_CLOCK =-1;
+    MAX_SECONDS=-1;
     FAILED_KILL_PENALTY = 3;
     POND_DEPTH = 1024;
     flags = 0;
 
-    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:h")) != -1) {
+    while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
         switch (opt) {
             case 'x':
                 POND_SIZE_X = atoi(optarg);
@@ -1011,6 +1019,27 @@ int main(int argc,char **argv)
             case 'k':
                 FAILED_KILL_PENALTY = atoi(optarg);
                 break;
+            case 't':
+                curTime=strtok(optarg, ":");
+                iterCount=0;
+                totTime=0;
+                while (curTime!=NULL){
+                iterCount++;
+                    if (iterCount==1){
+                        totTime=totTime+(atoi(curTime)*3600);
+                    }
+                    else if (iterCount==2){
+                        totTime=totTime+(atoi(curTime)*60);
+                    }
+                    else{
+                        totTime=totTime+atoi(curTime);
+
+                    }
+                    curTime=strtok(NULL, ":");
+                }
+                MAX_SECONDS=totTime;
+                break;
+
             case 'h':
                 printf("List of acceptable flags/parameters :\n" 
                         "-x : POND_SIZE_X -> integer value for the 'width' of the pond (default 800)\n"
@@ -1022,8 +1051,9 @@ int main(int argc,char **argv)
                         "INFLOW_RATE_BASE when energy is introduced (default = 1000)\n"    
                         "-m : MUTATION_RATE -> range is from 0 (none) to 0xffffffff (all mutations!) (default = 5000)\n"
                         "-p : PRINT_FREQ LOW, MED, or HIGH -> How often information is printed to the terminal (default = HIGH)\n"
-                        "-c : MAX_CLOCK (is multiplied by 10000) -> How many clock iterations the program runs "
+                        "-c : MAX_CLOCK (is multiplied by 10000) -> How many cycle iterations the program runs for "
                         "(default = -1 = forever) \n"
+                        "-t : MAX_SECONDS (00:00:00) -> How much time the program runs for"
                         "-d : POND_DEPTH (must be multiple of 16) -> Depth of the pond in four-bit codons -- acts as the maximum "
                         "genome size (default = 1024)\n"
                         "-k : FAILED_KILL_PENALTY -> Determines how much energy is taken from cells when they fail to kill a "
