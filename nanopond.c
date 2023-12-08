@@ -360,11 +360,11 @@ for(int i = 0; i < POND_SIZE_X; i++){
 static volatile uint64_t cellIdCounter = 0;
 
 /* Currently selected color scheme */
-enum { KINSHIP,LINEAGE,MAX_COLOR_SCHEME } colorScheme = KINSHIP;
-static const char *colorSchemeName[2] = { "KINSHIP", "LINEAGE" };
 
 #ifdef USE_SDL
 static SDL_Window *window;
+enum { KINSHIP,LINEAGE,MAX_COLOR_SCHEME } colorScheme = KINSHIP;
+static const char *colorSchemeName[2] = { "KINSHIP", "LINEAGE" };
 static SDL_Surface *winsurf;
 static SDL_Surface *screen;
 #endif
@@ -415,7 +415,7 @@ static void doReport(const uint64_t clock)
 	/* Look here to get the columns in the CSV output */
 	
 	/* The first five are here and are self-explanatory */
-	printf("%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu",
+	printf("%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu",
 		(uint64_t)clock,
 		(uint64_t)totalEnergy,
 		(uint64_t)totalActiveCells,
@@ -456,6 +456,7 @@ static void doReport(const uint64_t clock)
  * @param file Destination
  * @param cell Source
  */
+#ifdef USE_SDL
 static void dumpCell(FILE *file, struct Cell *cell)
 {
 	uintptr_t wordPtr,shiftPtr,inst,stopCount,i;
@@ -487,7 +488,7 @@ static void dumpCell(FILE *file, struct Cell *cell)
 	}
 	fprintf(file,"\n");
 }
-
+#endif
 static inline struct Cell *getNeighbor(const uintptr_t x,const uintptr_t y,const uintptr_t dir)
 {
 	/* Space is toroidal; it wraps at edges */
@@ -511,7 +512,7 @@ static inline int accessAllowed(struct Cell *const c2,const uintptr_t c1guess,in
 	 * "negative" interactions and sense 1 for "positive" ones. */
 	return sense ? (((getRandom() & 0xf) >= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID)) : (((getRandom() & 0xf) <= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID));
 }
-
+#ifdef USE_SDL
 static inline uint8_t getColor(struct Cell *c)
 {
 	uintptr_t i,j,word,sum,opcode,skipnext;
@@ -567,6 +568,7 @@ static inline uint8_t getColor(struct Cell *c)
 	}
 	return 0; /* Cells with no energy are black */
 }
+#endif
 
 volatile int exitNow = 0;
 
@@ -951,7 +953,7 @@ static void *run(void *targ)
  * @param argc Number of args
  * @param argv Argument array
  */
-int main(int argc,char **argv)
+int main()
 {
     int flags, opt;
     POND_SIZE_X = 800;
