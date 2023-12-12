@@ -326,7 +326,7 @@ struct Cell
 	uintptr_t energy;
 
 	/* Memory space for cell genome (genome is stored as four
-	 * bit instructions packed into machine size words) */
+	 * ibit instructions packed into machine size words) */
 	uintptr_t* genome;
 
 #ifdef USE_PTHREADS_COUNT
@@ -412,7 +412,6 @@ printf("%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu",
     (uint64_t)statCounters.viableCellsKilled,
     (uint64_t)statCounters.viableCellShares
     );
-
 /* The next 16 are the average frequencies of execution for each
  * instruction per cell execution. */
 double totalMetabolism = 0.0;
@@ -443,7 +442,8 @@ for(x=0;x<sizeof(statCounters);++x)
 * @param file Destination
 * @param cell Source
 */
-#ifdef USE_SDL
+//#ifdef USE_SDL
+/**
 static void dumpCell(FILE *file, struct Cell *cell)
 {
 uintptr_t wordPtr,shiftPtr,inst,stopCount,i;
@@ -454,13 +454,48 @@ if (cell->energy&&(cell->generation > 2)) {
     stopCount = 0;
     for(i=0;i<POND_DEPTH;++i) {
         inst = (cell->genome[wordPtr] >> shiftPtr) & 0xf;
+         Four STOP instructions in a row is considered the end.
+         * The probability of this being wrong is *very* small, and
+         * could only occur if you had four STOPs in a row inside
+         * a LOOP/REP pair that's always false. In any case, this
+         * would always result in our *underestimating* the size of
+         * the genome and would never result in an overestimation. *
+        fprintf(file,"%x",(unsigned int)inst);
+        if (inst == 0xf) { * STOP *
+            if (++stopCount >= 4)
+                break;
+        } else stopCount = 0;
+        if ((shiftPtr += 4) >= SYSWORD_BITS) {
+            if (++wordPtr >= POND_DEPTH_SYSWORDS) {
+                wordPtr = EXEC_START_WORD;
+                shiftPtr = EXEC_START_BIT;
+            } else shiftPtr = 0;
+        }
+    }
+fprintf(file, "\n");
+}
+//fprintf(file,"\n");
+}
+**/
+static void dumpCellProp(int fd, struct Cell *cell)
+{
+uintptr_t wordPtr,shiftPtr,inst,stopCount,i;
+
+if (cell->energy&&(cell->generation > 2)) {
+    wordPtr = 0;
+    shiftPtr = 0;
+    stopCount = 0;
+    for(i=0;i<sizeof(cell->genome);++i) {
+        inst = (cell->genome[wordPtr] >> shiftPtr) & 0xf;
         /* Four STOP instructions in a row is considered the end.
          * The probability of this being wrong is *very* small, and
          * could only occur if you had four STOPs in a row inside
          * a LOOP/REP pair that's always false. In any case, this
          * would always result in our *underestimating* the size of
          * the genome and would never result in an overestimation. */
-        fprintf(file,"%x",(unsigned int)inst);
+        char str[9];
+        sprintf(str, "%x", (unsigned int) inst);
+        write(fd,str, 1);
         if (inst == 0xf) { /* STOP */
             if (++stopCount >= 4)
                 break;
@@ -472,10 +507,24 @@ if (cell->energy&&(cell->generation > 2)) {
             } else shiftPtr = 0;
         }
     }
+write(fd, "\n",1);
 }
-fprintf(file,"\n");
+//fprintf(file,"\n");
 }
-#endif
+static void dumpPond(){
+    char temp[14] = "genomesXXXXXX";
+    int fileIdent = mkstemp(temp);
+    //FILE *newFile = fopen(fileName, "w+");
+    for (uintptr_t i=0; i<POND_SIZE_X; i++){
+        for (uintptr_t j=0; j<POND_SIZE_Y; j++){
+            if (pond[i][j].genome[0]!=~((uintptr_t)0)){
+                dumpCellProp(fileIdent,&pond[i][j]);
+            }
+        }
+    }
+    close(fileIdent);
+}
+//#endif
 static inline struct Cell *getNeighbor(const uintptr_t x,const uintptr_t y,const uintptr_t dir)
 {
 /* Space is toroidal; it wraps at edges */
@@ -638,7 +687,13 @@ while (!exitNow) {
         SDL_UpdateWindowSurface(window);
 #endif /* USE_SDL */
         end=clock();
-        if((cycle >= MAX_CLOCK) || ((( (uintptr_t)( (end-start)/CLOCKS_PER_SEC) ) >= MAX_SECONDS) && ((int)MAX_SECONDS!=-1))) {
+        if((cycle % 100000000)==0){
+            printf("looped. time=%ld\n",((end-start)/CLOCKS_PER_SEC));
+            dumpPond();
+        }
+        if(((cycle >= MAX_CLOCK) &&(int) MAX_CLOCK != -1) || ((( (uintptr_t)( (end-start)/CLOCKS_PER_SEC) ) >= MAX_SECONDS) && ((int)MAX_SECONDS!=-1))) {
+            dumpPond();
+            printf("exiting\n");
             exitNow = 1;
         }
     }
@@ -665,10 +720,9 @@ while (!exitNow) {
 #else
         pptr->energy += INFLOW_RATE_BASE;
 #endif /* INFLOW_RATE_VARIATION */
-        for(i=0;i<POND_DEPTH_SYSWORDS;++i) 
+        for(i=0;i<POND_DEPTH_SYSWORDS;++i)
             pptr->genome[i] = getRandom();
         ++cellIdCounter;
-    
         /* Update the random cell on SDL screen if viz is enabled */
 #ifdef USE_SDL
         ((uint8_t *)screen->pixels)[x + (y * sdlPitch)] = getColor(pptr);
@@ -739,10 +793,9 @@ while (!exitNow) {
                 --falseLoopDepth;
         } else {
             /* If we're not in a false LOOP/REP, execute normally */
-            
             /* Keep track of execution frequencies for each instruction */
             statCounters.instructionExecutions[inst] += 1.0;
-            
+
             switch(inst) {
                 case 0x0: /* ZERO: Zero VM state registers */
                     reg = 0;
@@ -869,7 +922,7 @@ while (!exitNow) {
                     break;
             }
         }
-        
+
         /* Advance the shift and word pointers, and loop around
          * to the beginning at the end of the genome. */
         if ((shiftPtr += 4) >= SYSWORD_BITS) {
@@ -895,7 +948,6 @@ while (!exitNow) {
             /* Log it if we're replacing a viable cell */
             if (tmpptr->generation > 2)
                 ++statCounters.viableCellsReplaced;
-            
             tmpptr->ID = ++cellIdCounter;
             tmpptr->parentID = pptr->ID;
             tmpptr->lineage = pptr->lineage; /* Lineage is copied in offspring */
@@ -929,7 +981,7 @@ while (!exitNow) {
     } else {
         ((uint8_t *)screen->pixels)[x + ((POND_SIZE_Y-1) * sdlPitch)] = getColor(&pond[x][POND_SIZE_Y-1]);
         ((uint8_t *)screen->pixels)[x + sdlPitch] = getColor(&pond[x][1]);
-    
+
 #endif /* USE_SDL */
 }
 
@@ -1027,14 +1079,14 @@ while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
             break;
 
         case 'h':
-            printf("List of acceptable flags/parameters :\n" 
+            printf("List of acceptable flags/parameters :\n"
                     "-x : POND_SIZE_X -> integer value for the 'width' of the pond (default 800)\n"
                     "-y : POND_SIZE_Y -> integer value for the 'height' of the pond (default 600)\n"
                     "-f : INFLOW_FREQUENCY -> How frequently should random cells / energy be introduced? Too high = chaotic, "
                     "too low = not enough energy (default = 100)\n"
                     "-b : INFLOW_RATE_BASE -> Base amount of energy to introduce per INFLOW_FREQUENCY ticks (default = 600)\n"
                     "-v : INFLOW_RATE_VARIATION -> (A random amount of energy between 0 and this is added to "
-                    "INFLOW_RATE_BASE when energy is introduced (default = 1000)\n"    
+                    "INFLOW_RATE_BASE when energy is introduced (default = 1000)\n"
                     "-m : MUTATION_RATE -> range is from 0 (none) to 0xffffffff (all mutations!) (default = 5000)\n"
                     "-p : PRINT_FREQ LOW, MED, or HIGH -> How often information is printed to the terminal (default = HIGH)\n"
                     "-c : MAX_CLOCK (is multiplied by 10000) -> How many cycle iterations the program runs for "
@@ -1053,16 +1105,13 @@ while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
     }
 
     POND_DEPTH_SYSWORDS = (POND_DEPTH / (sizeof(uintptr_t) * 2));
-    // genome = ((int*)calloc(POND_DEPTH_SYSWORDS, sizeof(int)));
-
-    pond = ((struct Cell**)calloc(POND_SIZE_X, sizeof(struct Cell*))); 
+    pond = ((struct Cell**)calloc(POND_SIZE_X, sizeof(struct Cell*)));
     for(uintptr_t i = 0; i < POND_SIZE_X; i++){
        pond[i] = ((struct Cell*)calloc(POND_SIZE_Y, sizeof(struct Cell)));
     }
 
     for(uintptr_t i = 0; i < POND_SIZE_X; i++){
         for(uintptr_t j = 0; j < POND_SIZE_Y; j++){
-            //printf("%d\n", pond[i][j].ID);
             pond[i][j].genome = (uintptr_t*)calloc(POND_DEPTH_SYSWORDS, sizeof(uintptr_t));
         }
     }
@@ -1079,7 +1128,6 @@ while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
 	/* Reset per-report stat counters */
 	for(x=0;x<sizeof(statCounters);++x)
 		((uint8_t *)&statCounters)[x] = (uint8_t)0;
-	
 	/* Set up SDL if we're using it */
 #ifdef USE_SDL
 	if (SDL_Init(SDL_INIT_VIDEO) < 0 ) {
@@ -1119,7 +1167,7 @@ while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
 		}
 	}
 #endif /* USE_SDL */
- 
+
 	/* Clear the pond and initialize all genomes
 	 * to 0xffff... */
 	for(x=0;x<POND_SIZE_X;++x) {
@@ -1143,6 +1191,38 @@ while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
 	for(i=1;i<USE_PTHREADS_COUNT;++i)
 		pthread_create(&threads[i],0,run,(void *)i);
 	run((void *)0);
+static void dumpCell(FILE *file, struct Cell *cell)
+{
+uintptr_t wordPtr,shiftPtr,inst,stopCount,i;
+
+if (cell->energy&&(cell->generation > 2)) {
+    wordPtr = 0;
+    shiftPtr = 0;
+    stopCount = 0;
+    for(i=0;i<POND_DEPTH;++i) {
+        inst = (cell->genome[wordPtr] >> shiftPtr) & 0xf;
+        /* Four STOP instructions in a row is considered the end.
+         * The probability of this being wrong is *very* small, and
+         * could only occur if you had four STOPs in a row inside
+         * a LOOP/REP pair that's always false. In any case, this
+         * would always result in our *underestimating* the size of
+         * the genome and would never result in an overestimation. */
+        fprintf(file,"%x",(unsigned int)inst);
+        if (inst == 0xf) { /* STOP */
+            if (++stopCount >= 4)
+                break;
+        } else stopCount = 0;
+        if ((shiftPtr += 4) >= SYSWORD_BITS) {
+            if (++wordPtr >= POND_DEPTH_SYSWORDS) {
+                wordPtr = EXEC_START_WORD;
+                shiftPtr = EXEC_START_BIT;
+            } else shiftPtr = 0;
+        }
+    }
+fprintf(file, "\n");
+}
+//fprintf(file,"\n");
+}
 	for(i=1;i<USE_PTHREADS_COUNT;++i)
 		pthread_join(threads[i],(void **)0);
 #else
