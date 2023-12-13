@@ -213,7 +213,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-
+#include <sys/stat.h>
 #ifdef USE_PTHREADS_COUNT
 #include <pthread.h>
 #endif
@@ -260,6 +260,7 @@ uintptr_t POND_SIZE_Y;
 uintptr_t POND_SIZE_X;
 uintptr_t MAX_CLOCK; 
 uintptr_t MAX_SECONDS;
+
 /* Depth of pond in four-bit codons -- this is the maximum
  * genome size. This *must* be a multiple of 16! */
 //#define POND_DEPTH 1024
@@ -268,6 +269,8 @@ uintptr_t POND_DEPTH;
  * from cells when they try to KILL a viable cell neighbor and
  * fail. Higher numbers mean lower penalties. */
 uintptr_t FAILED_KILL_PENALTY;
+char dirName[20];
+unsigned int seed;
 volatile uint64_t prngState[2];
 static inline uintptr_t getRandom()
 {
@@ -513,7 +516,9 @@ write(fd, "\n",1);
 }
 static void dumpPond(){
     char temp[14] = "genomesXXXXXX";
-    int fileIdent = mkstemp(temp);
+    char fileLocation[34];
+    sprintf(fileLocation, "%s/%s", dirName, temp);
+    int fileIdent = mkstemp(fileLocation);
     //FILE *newFile = fopen(fileName, "w+");
     for (uintptr_t i=0; i<POND_SIZE_X; i++){
         for (uintptr_t j=0; j<POND_SIZE_Y; j++){
@@ -687,7 +692,7 @@ while (!exitNow) {
         SDL_UpdateWindowSurface(window);
 #endif /* USE_SDL */
         end=clock();
-        if((cycle % 100000000)==0){
+        if((cycle % 200000000)==0){
             printf("looped. time=%ld\n",((end-start)/CLOCKS_PER_SEC));
             dumpPond();
         }
@@ -1011,9 +1016,15 @@ MAX_CLOCK =-1;
 MAX_SECONDS=-1;
 FAILED_KILL_PENALTY = 3;
 POND_DEPTH = 1024;
-
-while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
+seed=time(NULL);
+while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:n:")) != -1) {
     switch (opt) {
+        case 'n':
+            printf("/results_%s\n",optarg);
+            sprintf(dirName,"results_%s",optarg);
+            mkdir(dirName,0700);
+            seed=atoi(optarg)*time(NULL);
+            break;
         case 'x':
             POND_SIZE_X = atoi(optarg);
             break;
@@ -1122,7 +1133,7 @@ while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:")) != -1) {
     //const int POND_SIZE_X = 800;
 	/* Seed and init the random number generator */
 	prngState[0] = (uint64_t)time(NULL);
-	srand(time(NULL));
+	srand(seed);
 	prngState[1] = (uint64_t)rand();
 
 	/* Reset per-report stat counters */
