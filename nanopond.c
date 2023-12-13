@@ -261,6 +261,7 @@ uintptr_t POND_SIZE_X;
 uintptr_t MAX_CLOCK; 
 uintptr_t MAX_SECONDS;
 
+unsigned int FILE_PRINT_FREQUENCY;
 /* Depth of pond in four-bit codons -- this is the maximum
  * genome size. This *must* be a multiple of 16! */
 //#define POND_DEPTH 1024
@@ -691,8 +692,11 @@ while (!exitNow) {
         SDL_BlitSurface(screen, NULL, winsurf, NULL);
         SDL_UpdateWindowSurface(window);
 #endif /* USE_SDL */
+
         end=clock();
-        if((cycle % 200000000)==0){
+        //changing the number cycle is divided by results in change in frequency of
+        //dumping cells to a file. 1000000000 results in a new file every 5 minutes
+        if((cycle % FILE_PRINT_FREQUENCY)==0){
             printf("looped. time=%ld\n",((end-start)/CLOCKS_PER_SEC));
             dumpPond();
         }
@@ -1017,8 +1021,31 @@ MAX_SECONDS=-1;
 FAILED_KILL_PENALTY = 3;
 POND_DEPTH = 1024;
 seed=time(NULL);
-while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:n:")) != -1) {
+FILE_PRINT_FREQUENCY = 10000000;
+
+while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:n:w:")) != -1) {
     switch (opt) {
+        case 'w':
+            curTime=strtok(optarg, ":");
+            iterCount=0;
+            totTime=0;
+            while (curTime!=NULL){
+            iterCount++;
+                if (iterCount==1){
+                    totTime=totTime+(atoi(curTime)*3600);
+                }
+                else if (iterCount==2){
+                    totTime=totTime+(atoi(curTime)*60);
+                }
+                else{
+                    totTime=totTime+atoi(curTime);
+
+                }
+                curTime=strtok(NULL, ":");
+            }
+            FILE_PRINT_FREQUENCY=totTime*3200000;
+
+            break;
         case 'n':
             printf("/results_%s\n",optarg);
             sprintf(dirName,"results_%s",optarg);
@@ -1107,6 +1134,9 @@ while ((opt = getopt(argc, argv, "x:y:m:f:v:b:p:c:k:d:ht:n:")) != -1) {
                     "genome size (default = 1024)\n"
                     "-k : FAILED_KILL_PENALTY -> Determines how much energy is taken from cells when they fail to kill a "
                     "viable cell neighbor. Higher numbers mean lower penalties (default = 3)\n"
+                    "-n : dirName -> allows the user to create a directory to record the result. The specified directory will "
+                    "be created if it does not already exist. The the random seed is multiplied by this number, "
+                    "allowing multiple simultaneous runs through a shell script "
                     "-h : help menu -> Pulls up this menu :)\n");
                     exit(EXIT_FAILURE);
         default:
