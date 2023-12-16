@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import os
 import numpy as np
+import statistics
+from statistics import mode
 
 def convertTime(origString):
     splitTime=origString.split(":")
@@ -62,8 +64,46 @@ def totalGenomes(filename):
 
     graph(x, y, plt)
     plt.savefig("unique_vs_time_" + filename + ".png")
+
+def percentDominance(filename):
+    startTime=0
+    plt.title("Percent of Dominant Genome vs Time")
+    plt.ylabel("% of Dominating Genome")
+    plt.xlabel("Time (min)")
+    f = os.path.join("formattedResults", filename)
+    myFile=open(f, "r")
+    x=[]
+    y=[]
+    firstLine=True
+    dict={}
+    for line in myFile:
+        splitLine=line.split("/")
+        secondSplitLine=splitLine[1].split("_")
+        timeStamp=secondSplitLine[0]
+        thirdSplit=secondSplitLine[1].split(":")
+        splitGenome= thirdSplit[1].split("\n")
+        genome=splitGenome[0]
+        formattedTime=convertTime(timeStamp)
+        if firstLine:
+            startTime=formattedTime
+            firstLine=False
+        runTime=int(formattedTime)-int(startTime)
+        if runTime not in dict.keys():
+            dict[runTime]=[genome]
+        dict[runTime].append(genome)
+    for key in dict:
+        #maxG = max(set(dict[key]), key = dict[key].count))
+        maxG =  mode(dict[key])
+        percent = dict[key].count(maxG)/len(dict[key])
+        y.append(percent)
+        x.append(key)
+
+    graph(x, y, plt)
+    plt.savefig("percentDominance" + filename + ".png")
+
 def main():
-    totalGenomes("fooresults_1")
+    #totalGenomes("fooresults_1")
+    percentDominance("fooresults_18")
 
 
 main()
