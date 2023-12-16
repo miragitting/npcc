@@ -78,6 +78,7 @@ def individualGenomes(genomeList, filename):
         thirdSplit=secondSplitLine[1].split(":")
         splitGenome= thirdSplit[1].split("\n")
         genome=splitGenome[0]
+        print("_" + genome + "_")
         #print(genome, timeStamp)
         #print(timeStamp)
         formattedTime=convertTime(timeStamp)
@@ -91,10 +92,13 @@ def individualGenomes(genomeList, filename):
         if genome in genomeList:
             dict[runTime].append(genome)
             #timeStampList.append(runTime)
+    for key in dict:
+        x.append(key)
     for g in genomeList:
         for key in dict:
             y.append(dict[key].count(g))
-            x.append(key)
+            #x.append(key)
+        print(x, "\n", y)
         graph(x, y, plt, g)
     plt.legend(loc = 'upper left')
     plt.savefig("popularGenomes" + splitLine[0] + ".png")
